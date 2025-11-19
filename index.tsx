@@ -41,6 +41,7 @@ const MOCK_USER: UserData = {
 
 const AVAILABLE_WIDGETS: WidgetDef[] = [
   { id: "w-ai", type: "ai-briefing", title: "Daily Briefing", colSpan: 2 },
+  { id: "w-weather", type: "weather", title: "Local Weather", colSpan: 1 },
   { id: "w-stats", type: "stats", title: "Overview", colSpan: 1 },
   { id: "w-activity", type: "activity", title: "Recent Activity", colSpan: 1 },
   { id: "w-saved", type: "saved", title: "Saved For Later", colSpan: 2 },
@@ -226,6 +227,68 @@ const TimerWidget = () => {
   );
 };
 
+// 6. Weather Widget
+const WeatherWidget = () => {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Fetch weather for New York
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=40.7128&longitude=-74.0060&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto")
+      .then(res => res.json())
+      .then(setData)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="h-full flex items-center justify-center text-slate-500 text-sm"><span className="animate-pulse">Loading weather...</span></div>;
+  if (!data) return <div className="h-full flex items-center justify-center text-slate-500 text-sm">Weather unavailable</div>;
+
+  const current = data.current;
+  const daily = data.daily;
+  
+  // Map WMO weather codes to icons
+  const getIcon = (code: number, isDay: number) => {
+     if (code === 0) return isDay ? "sunny" : "clear_night";
+     if (code < 3) return isDay ? "partly_cloudy_day" : "partly_cloudy_night";
+     if (code < 50) return "foggy";
+     if (code < 60) return "rainy";
+     if (code < 70) return "rainy";
+     if (code < 80) return "ac_unit";
+     if (code < 95) return "thunderstorm";
+     return "cloud";
+  };
+
+  const getDesc = (code: number) => {
+      const map: Record<number, string> = { 
+          0: "Clear", 1: "Mainly Clear", 2: "Partly Cloudy", 3: "Overcast", 
+          45: "Fog", 48: "Fog", 51: "Drizzle", 53: "Drizzle", 55: "Drizzle", 
+          61: "Rain", 63: "Rain", 65: "Rain", 71: "Snow", 73: "Snow", 
+          75: "Snow", 95: "Thunderstorm" 
+      };
+      return map[code] || "Unknown";
+  }
+
+  return (
+    <div className="h-full flex flex-col justify-between">
+        <div className="flex justify-between items-start">
+            <div>
+                <h3 className="text-3xl font-bold text-white">{Math.round(current.temperature_2m)}°F</h3>
+                <p className="text-xs text-slate-400 font-medium mt-1">New York, NY</p>
+            </div>
+            <Icon name={getIcon(current.weather_code, current.is_day)} className="text-4xl text-amber-400" />
+        </div>
+        <div>
+            <p className="text-slate-200 font-medium">{getDesc(current.weather_code)}</p>
+            <div className="flex gap-3 mt-1 text-xs text-slate-500">
+                <span>H: {Math.round(daily.temperature_2m_max[0])}°</span>
+                <span>L: {Math.round(daily.temperature_2m_min[0])}°</span>
+            </div>
+        </div>
+    </div>
+  );
+};
+
 // --- Container & App ---
 
 const WidgetContainer = ({ 
@@ -280,7 +343,7 @@ const WidgetContainer = ({
 const App = () => {
   const [activeWidgets, setActiveWidgets] = useState<string[]>(() => {
     const saved = localStorage.getItem("dashboard_widgets");
-    return saved ? JSON.parse(saved) : ["w-ai", "w-stats", "w-activity", "w-saved", "w-timer"];
+    return saved ? JSON.parse(saved) : ["w-ai", "w-weather", "w-stats", "w-activity", "w-saved", "w-timer"];
   });
   const [editMode, setEditMode] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -319,6 +382,7 @@ const App = () => {
       case "saved": return <SavedItemsWidget items={MOCK_USER.savedItems} />;
       case "stats": return <StatsWidget />;
       case "timer": return <TimerWidget />;
+      case "weather": return <WeatherWidget />;
       default: return null;
     }
   };
